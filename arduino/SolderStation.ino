@@ -118,12 +118,12 @@ void setup(void) {
 	
 	tft.setTextSize(1);
 	tft.setTextColor(ST7735_GREY);
-	tft.setCursor(103,0);
+	tft.setCursor(102,0);
 	tft.print("v");
 	tft.print(VERSION);
 	
 	tft.setTextColor(ST7735_YELLOW);
-	tft.setCursor(104,1);
+	tft.setCursor(103,1);
 	tft.print("v");
 	tft.print(VERSION);
 	
@@ -134,19 +134,19 @@ void setup(void) {
 	tft.setTextColor(ST7735_WHITE);
 
 	tft.setTextSize(1);
-	tft.setCursor(1,84);
+	tft.setCursor(1,85);
 	tft.print("ist");
 	
 	tft.setTextSize(2);
-	tft.setCursor(117,47);
+	tft.setCursor(117,49);
 	tft.print("o");
 	
 	tft.setTextSize(1);
-	tft.setCursor(1,129);
+	tft.setCursor(1,130);
 	tft.print("soll");
 	
 	tft.setTextSize(2);
-	tft.setCursor(117,92);
+	tft.setCursor(117,94);
 	tft.print("o");
 	
 	tft.setCursor(80,144);
