@@ -10,5 +10,7 @@ Die Farbübergänge waren nicht einstellbar und stellenweise zu dunkel. Sie sind
 einstellbar.
 
 Die Anzeige war mir zu unruhig. Verschiedene Einstellmöglichkeiten für die Entprellung und Displayrefresh wurden hinzugefügt.
+
 Maximale Leistung nur im standby reduziert, ansonsten 100%.
+
 Textumbrüche ausgeschaltet wegen Anzeigeproblemen an manchen Displays.
