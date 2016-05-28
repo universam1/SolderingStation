@@ -43,9 +43,9 @@
 #define MAX_PWM_HI			   255		//254
 #define MAX_POTI				   400		//400Grad C
 
-#define JITTER                    2  // Anzeigehysterese um die Anzeige zu beruhigen
+#define JITTER                    2  // Hysterese um die Anzeige zu beruhigen
 #define DISPLAY_REFRESH        2000  // Zeit um die Hysterese zu initialiseren
-#define DISPLAY_WRITE           200  // Schreibzyklus auf das Display
+#define AUTO_OFF             600000  // Zeit für das Ausschalten der Heizung (10min)
 #define DISPLAY_FADE_DIFF_TEMP   40  // Temperaturabstand für den Übergang von rot nach grün = gelb
 #define DISPLAY_FADE_DIFF        35  // Temperaturband für das Aus/Einblenden von rot bzw. grün
                                      // DISPLAY_FADE_DIFF muss kleiner sein als DISPLAY_FADE_DIFF_TEMP
@@ -60,23 +60,21 @@
 Adafruit_ST7735 tft = Adafruit_ST7735(cs_tft, dc, rst);  // Invoke custom library
 
 int pwm = 0; //pwm Out Val 0.. 255
-int soll_temp = 300;
+int soll_temp = 0;
+int soll_temp_tmp = 0;
 int disp_soll_temp = 0;
-int disp_ist_temp = 0;
-int disp_soll_temp_old = 0;
-int disp_ist_temp_old = 0;
 boolean standby_act = false;
+boolean standby_act_old = false;
+boolean autoOFF = false;
+boolean autoOFF_old = false;
 unsigned long refreshMillis = 0;
-unsigned long writeMillis = 0;
-uint8_t standby_act_old = false;
+unsigned long autoOffMillis = 0;
+unsigned long pwmMillis = 0;
 CRGB led[1];
-
-void displaySB(uint8_t SBon);
-uint16_t Color565(uint8_t r, uint8_t g, uint8_t b);
 
 void setup(void) {
 
-  // Serial.begin(9600);
+  Serial.begin(115200);
 
 	FastLED.addLeds<WS2812B, LED_PIN, GRB>(led, 1);
 	FastLED.setBrightness(BRIGHTNESS);
@@ -103,8 +101,8 @@ void setup(void) {
 	//Print station Logo
 	tft.drawBitmap(2,1,stationLOGO1,124,47,ST7735_GREY);
 	tft.drawBitmap(3,3,stationLOGO1,124,47,ST7735_YELLOW);		
-	tft.drawBitmap(3,3,stationLOGO2,124,47,Color565(254,147,52));	
-	tft.drawBitmap(3,3,stationLOGO3,124,47,Color565(255,78,0));
+	tft.drawBitmap(3,3,stationLOGO2,124,47,tft.Color565(254,147,52));	
+	tft.drawBitmap(3,3,stationLOGO3,124,47,tft.Color565(255,78,0));
 	
 	//BAcklight on
 	digitalWrite(BLpin, HIGH);
@@ -160,12 +158,13 @@ void setup(void) {
 	tft.setCursor(117,94);
 	tft.print("o");
 	
-	tft.setCursor(80,144);
-	tft.print("   %");
-	
 	tft.setTextSize(1);
 	tft.setCursor(1,151);		//60
 	tft.print("pwm");
+  tft.setCursor(28,144);
+  tft.print("0%");
+  tft.setCursor(104,144);
+  tft.print("100%");
 	
 	tft.setTextSize(2);
 }
@@ -175,37 +174,29 @@ void loop() {
 	
 	int actual_temperature = getTemperature();
   unsigned long currentMillis = millis();
-
+  standby_act = !digitalRead(STANDBYin);
   soll_temp = map(analogRead(POTI), 0, 1024, 0, MAX_POTI);
-
-  if ((actual_temperature-JITTER > disp_ist_temp) || (actual_temperature+JITTER < disp_ist_temp)){
-    disp_ist_temp = actual_temperature;
-  }
-  
   if ((soll_temp-JITTER > disp_soll_temp) || (soll_temp+JITTER < disp_soll_temp)){
     disp_soll_temp = soll_temp;
   }
-  
-  if ((currentMillis - refreshMillis >= DISPLAY_REFRESH) || (abs(soll_temp-actual_temperature) > 10) ) {
-    refreshMillis = currentMillis;
-    disp_soll_temp = soll_temp;
-    disp_ist_temp = actual_temperature;
-  }
-
-	int soll_temp_tmp = soll_temp;
-	
-	if (digitalRead(STANDBYin) == false) {
-		standby_act = true;
-	} else {
-		standby_act = false;
-	}
  
-  if (standby_act != standby_act_old) displaySB(standby_act);
-	
-	if (standby_act && (soll_temp >= STANDBY_TEMP )) {
+  if (standby_act != standby_act_old) {
+    autoOffMillis = currentMillis;
+  }
+  
+  if (standby_act && (soll_temp >= STANDBY_TEMP )) {
 		soll_temp_tmp = STANDBY_TEMP;
+	} else {
+    soll_temp_tmp = soll_temp;
 	}
-	
+
+  if (currentMillis - autoOffMillis >= AUTO_OFF) {
+    soll_temp_tmp = 0;
+    autoOFF = true;
+  } else {
+    autoOFF = false;
+  }
+  
 	int diff = (soll_temp_tmp + OVER_SHOT)- actual_temperature;
 	pwm = diff*CNTRL_GAIN;
 	
@@ -226,16 +217,16 @@ void loop() {
 	analogWrite(PWMpin, pwm);
 	//digitalWrite(PWMpin, LOW);
 	
-	if (currentMillis - writeMillis >= DISPLAY_WRITE) {
-	  writeMillis = currentMillis;
-	  writeHEATING(disp_soll_temp, disp_ist_temp, pwm);
-	}
+  if ((currentMillis - refreshMillis >= DISPLAY_REFRESH) || ((abs(soll_temp_tmp-actual_temperature) > 10) && !autoOFF) || (standby_act != standby_act_old)) {
+    refreshMillis = currentMillis;
+    writeHEATING(disp_soll_temp, actual_temperature);
+  }
+	
+  writePWM(pwm);
  
 	//update LED
 	FastLED.show();
  
-	disp_soll_temp_old = disp_soll_temp;
-  disp_ist_temp_old = disp_ist_temp;
   standby_act_old = standby_act;
 
 	delay(DELAY_MAIN_LOOP);		//wait for some time
@@ -253,15 +244,60 @@ int getTemperature()
 	return round(((float) adcValue)*ADC_TO_TEMP_GAIN+ADC_TO_TEMP_OFFSET); //apply linear conversion to actual temperature
 }
 
-void writeHEATING(int tempSOLL, int tempVAL, int pwmVAL){
+void writePWM(int pwmVAL){
+  
+  static int pwmVAL_OLD =   10;
+
+  //TFT Anzeige
+  
+  pwmVAL = map(pwmVAL, 0, 254, 0, 100);
+  tft.setTextSize(2);
+  if (autoOFF_old != autoOFF) {
+    if (autoOFF){
+      tft.fillRect(0,144,128,16,0);
+      tft.setCursor(2,55);
+      tft.setTextColor(ST7735_BLACK);
+      tft.print("SB");
+      tft.setCursor(0,144);
+      tft.setTextColor(ST7735_CYAN);
+      tft.print("10min. OFF");
+    }else{
+      tft.setCursor(0,144);
+      tft.setTextColor(ST7735_BLACK);
+      tft.print("10min. OFF");
+      tft.setTextSize(1);
+      tft.setTextColor(ST7735_WHITE);
+      tft.setCursor(1,151);   //60
+      tft.print("pwm");
+      tft.setCursor(28,144);
+      tft.print("0%");
+      tft.setCursor(104,144);
+      tft.print("100%");
+      if (pwmVAL) {
+      tft.fillRect(28,153,pwmVAL,12,ST7735_YELLOW);
+      tft.fillRect(28+pwmVAL,153,100-pwmVAL,12,ST7735_BLACK);
+      } else {
+        tft.fillRect(28,153,1,12,ST7735_WHITE);
+        tft.fillRect(29,153,99,12,ST7735_BLACK);
+      }
+    }
+  }
+  else if ((pwmVAL_OLD != pwmVAL) && !autoOFF){
+    if (pwmVAL) {
+    tft.fillRect(28,153,pwmVAL,12,ST7735_YELLOW);
+    tft.fillRect(28+pwmVAL,153,100-pwmVAL,12,ST7735_BLACK);
+    } else {
+      tft.fillRect(28,153,1,12,ST7735_WHITE);
+      tft.fillRect(29,153,99,12,ST7735_BLACK);
+    }
+  }
+  autoOFF_old = autoOFF;
+}
+
+void writeHEATING(int tempSOLL, int tempVAL){
 
 	static int tempSOLL_OLD = 	10;
 	static int tempVAL_OLD	= 	10;
-	static int pwmVAL_OLD	= 	10;
-
-	//TFT Anzeige
-	
-	pwmVAL = map(pwmVAL, 0, 254, 0, 100);
 	
 	tft.setTextSize(5);
 	if (tempVAL_OLD != tempVAL){
@@ -288,11 +324,16 @@ void writeHEATING(int tempSOLL, int tempVAL, int pwmVAL){
 		if (tempVAL <10) {
 			tft.print(" ");
 		}
-    if (standby_act) {
-      tft.setTextColor(ST7735_CYAN);
+    if (standby_act && !autoOFF) {
+      tft.setTextColor(ST7735_BLUE);
       led[0].r = 0;
       led[0].g = 0;
       led[0].b = 255;
+    } else if (autoOFF) {
+      tft.setTextColor(ST7735_CYAN);
+      led[0].r = 0;
+      led[0].g = 0;
+      led[0].b = 0;
     } else {
       int tempDIV = tempSOLL - tempVAL;
       tempDIV = tempDIV > 255 ? tempDIV = 255 : tempDIV < 0 ? tempDIV = 0 : tempDIV;
@@ -300,15 +341,29 @@ void writeHEATING(int tempSOLL, int tempVAL, int pwmVAL){
       tempR = tempDIV >= DISPLAY_FADE_DIFF_TEMP ? tempR = 255 : tempR > 255 ? tempR = 255 : tempR < 0 ? tempR = 0 : tempR;
       int tempG = 255+(DISPLAY_FADE_DIFF_TEMP*(255/DISPLAY_FADE_DIFF))-(tempDIV*(255/DISPLAY_FADE_DIFF));
       tempG = tempDIV <= DISPLAY_FADE_DIFF_TEMP ? tempG = 255 : tempG < 0 ? tempG = 0 : tempG > 255 ? tempG = 255 : tempG;
-      tft.setTextColor(Color565(tempR, tempG, 0));
+      tft.setTextColor(tft.Color565((uint8_t)tempR, (uint8_t)tempG, 0));
       led[0].r = tempR;
       led[0].g = tempG;
       led[0].b = 0;
-      tft.print(tempVAL);
     }
+    tft.print(tempVAL);
+    tft.setTextSize(1);
+    tft.setCursor(1,85);
+    tft.print("ist");
+    tft.setTextSize(2);
+    tft.setCursor(117,49);
+    tft.print("o");
 		tempVAL_OLD = tempVAL;
+    tft.setCursor(2,55);
+    if (standby_act && !autoOFF) {
+      tft.setTextColor(ST7735_BLUE);
+    } else {
+      tft.setTextColor(ST7735_BLACK);
+    }
+    tft.print("SB");
 	}
 	
+  tft.setTextSize(5);
 	if (tempSOLL_OLD != tempSOLL){
 		tft.setCursor(30,102);
 		tft.setTextColor(ST7735_BLACK);
@@ -337,36 +392,6 @@ void writeHEATING(int tempSOLL, int tempVAL, int pwmVAL){
 		}
 		tft.print(tempSOLL);
 		tempSOLL_OLD = tempSOLL;
-	}
-	
-	
-	tft.setTextSize(2);
-	if (pwmVAL_OLD != pwmVAL){
-		tft.setCursor(80,144);
-		tft.setTextColor(ST7735_BLACK);
-		if ((pwmVAL_OLD/100) != (pwmVAL/100)){
-			tft.print(pwmVAL_OLD/100);
-		} else {
-			tft.print(" ");
-		}
-		if ( ((pwmVAL_OLD/10)%10) != ((pwmVAL/10)%10) ) {
-			tft.print((pwmVAL_OLD/10)%10 );
-		} else {
-			tft.print(" ");
-		}
-		if ( (pwmVAL_OLD%10) != (pwmVAL%10) ) {
-			tft.print(pwmVAL_OLD%10 );
-		}
-		tft.setCursor(80,144);
-		tft.setTextColor(ST7735_WHITE);
-		if (pwmVAL < 100) {
-			tft.print(" ");
-		}
-		if (pwmVAL <10) {
-			tft.print(" ");
-		}
-		tft.print(pwmVAL);
-		pwmVAL_OLD = pwmVAL;
 	}
 }
 
@@ -403,17 +428,4 @@ void setPwmFrequency(int pin, int divisor) {
 	}
 }
 
-void displaySB(uint8_t SBon) {
-  tft.setCursor(2,55);
-  if (SBon) {
-    tft.setTextColor(ST7735_WHITE);
-  } else {
-    tft.setTextColor(ST7735_BLACK);
-  }
-  tft.print("SB");
-}
-
-uint16_t Color565(uint8_t r, uint8_t g, uint8_t b) {
- return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-}
 
