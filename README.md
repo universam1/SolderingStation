@@ -14,3 +14,7 @@ Die Anzeige war mir zu unruhig. Verschiedene Einstellmöglichkeiten für die Ent
 Maximale Leistung nur im standby reduziert, ansonsten 100%.
 
 Textumbrüche ausgeschaltet wegen Anzeigeproblemen an manchen Displays.
+
+PWM als Balkenanzeige
+
+Nach 10 Minuten Nichtbenutzung (keine Änderung des SB-Status) Lötkolben ausschalten. Sobald der Lötkolben aus der Station aufgenommen oder in die Station abgelegt wird aktiviert sie sich wieder.
