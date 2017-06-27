@@ -1,0 +1,4 @@
+(fp_lib_table
+  (lib (name SHIELD_ARDUINO)(type KiCad)(uri "$(KIPRJMOD)/Library_footprint_shield_arduino/SHIELD_ARDUINO.pretty")(options "")(descr ""))
+  (lib (name MP1584)(type KiCad)(uri "$(KIPRJMOD)/MP1584ENBB.pretty")(options "")(descr ""))
+)

@@ -6,7 +6,7 @@
 //*******************************//
 
 #define __PROG_TYPES_COMPAT__ 
-#include <FastLED.h>      
+// #include <FastLED.h>      
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library
 #include <SPI.h>
@@ -70,15 +70,15 @@ boolean autoOFF_old = false;
 unsigned long refreshMillis = 0;
 unsigned long autoOffMillis = 0;
 unsigned long pwmMillis = 0;
-CRGB led[1];
+// CRGB led[1];
 
 void setup(void) {
 
   Serial.begin(115200);
 
-	FastLED.addLeds<WS2812B, LED_PIN, GRB>(led, 1);
-	FastLED.setBrightness(BRIGHTNESS);
-	led[0] = CRGB::White;
+	// FastLED.addLeds<WS2812B, LED_PIN, GRB>(led, 1);
+	// FastLED.setBrightness(BRIGHTNESS);
+	// led[0] = CRGB::White;
 	
 	pinMode(BLpin, OUTPUT);     // pin 7 geschaltet über Transistor
   pinMode(BLpinold, INPUT);   // pin 5 ist direkt mit BL verbunden und wird als Eingang definiert um nicht zu stören
@@ -225,7 +225,7 @@ void loop() {
   writePWM(pwm);
  
 	//update LED
-	FastLED.show();
+	// fastled.show();
  
   standby_act_old = standby_act;
 
@@ -326,14 +326,14 @@ void writeHEATING(int tempSOLL, int tempVAL){
 		}
     if (standby_act && !autoOFF) {
       tft.setTextColor(ST7735_BLUE);
-      led[0].r = 0;
-      led[0].g = 0;
-      led[0].b = 255;
+      // led[0].r = 0;
+      // led[0].g = 0;
+      // led[0].b = 255;
     } else if (autoOFF) {
       tft.setTextColor(ST7735_CYAN);
-      led[0].r = 0;
-      led[0].g = 0;
-      led[0].b = 0;
+      // led[0].r = 0;
+      // led[0].g = 0;
+      // led[0].b = 0;
     } else {
       int tempDIV = tempSOLL - tempVAL;
       tempDIV = tempDIV > 255 ? tempDIV = 255 : tempDIV < 0 ? tempDIV = 0 : tempDIV;
@@ -342,9 +342,9 @@ void writeHEATING(int tempSOLL, int tempVAL){
       int tempG = 255+(DISPLAY_FADE_DIFF_TEMP*(255/DISPLAY_FADE_DIFF))-(tempDIV*(255/DISPLAY_FADE_DIFF));
       tempG = tempDIV <= DISPLAY_FADE_DIFF_TEMP ? tempG = 255 : tempG < 0 ? tempG = 0 : tempG > 255 ? tempG = 255 : tempG;
       tft.setTextColor(tft.Color565((uint8_t)tempR, (uint8_t)tempG, 0));
-      led[0].r = tempR;
-      led[0].g = tempG;
-      led[0].b = 0;
+      // led[0].r = tempR;
+      // led[0].g = tempG;
+      // led[0].b = 0;
     }
     tft.print(tempVAL);
     tft.setTextSize(1);
