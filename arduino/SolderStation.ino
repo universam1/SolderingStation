@@ -21,7 +21,7 @@
 // #define LED_PIN 6
 #define BRIGHTNESS 255
 #define MAXWATT 40
-#define INTVUPD 100
+#define INTVUPD 123
 
 //Missing color in TFT lib
 #define ST7735_GREY 0x632C
@@ -39,9 +39,11 @@
 
 #define DELAY_MAIN_LOOP 10
 #define DELAY_MEASURE 10
-#define ADC_TO_TEMP_GAIN 0.53 //Mit original Weller Station verglichen
-#define ADC_TO_TEMP_OFFSET 25.0
-#define STANDBY_TEMP 175
+// #define ADC_TO_TEMP_GAIN 0.53 //Mit original Weller Station verglichen
+// #define ADC_TO_TEMP_OFFSET 25.0
+#define ADC_TO_TEMP_GAIN 0.42
+#define ADC_TO_TEMP_OFFSET 60.0
+#define STANDBY_TEMP 90
 
 #define OVER_SHOT 2
 #define MAX_PWM_LOW 80
@@ -49,7 +51,7 @@
 #define MAX_POTI 400   //400Grad C
 
 #define JITTER 2				  // Hysterese um die Anzeige zu beruhigen
-#define DISPLAY_REFRESH 500	  // Zeit um die Hysterese zu initialiseren
+#define DISPLAY_REFRESH 500		  // Zeit um die Hysterese zu initialiseren
 #define AUTO_OFF 600000			  // Zeit für das Ausschalten der Heizung (10min)
 #define DISPLAY_FADE_DIFF_TEMP 20 // Temperaturabstand für den Übergang von rot nach grün = gelb
 #define DISPLAY_FADE_DIFF 35	  // Temperaturband für das Aus/Einblenden von rot bzw. grün
@@ -127,7 +129,7 @@ void setPower()
 uint8_t getMaxPWM(float volt, uint16_t pwm)
 {
 	uint16_t _maxWatt = volt * (volt / RTresist);
-	_maxWatt = MAXWATT * 255 / _maxWatt ;
+	_maxWatt = MAXWATT * 255 / _maxWatt;
 	// Serial.println(_maxWatt);
 	return constrain(_maxWatt, 0, 255);
 }
@@ -157,8 +159,9 @@ void setup(void)
 	ADCSRA &= ~PS_128; // remove bits set by Arduino library
 	ADCSRA |= PS_32;   // 32 prescaler
 
-	Serial.begin(115200);
+	SPI.setClockDivider(SPI_CLOCK_DIV2); // 4MHz
 
+	Serial.begin(115200);
 	sCmd.addCommand("P", setPower);
 	sCmd.addCommand("B", setBrightness);
 
@@ -179,7 +182,6 @@ void setup(void)
 	analogWrite(BLpin, BRIGHTNESS);
 
 	tft.initR(INITR_BLACKTAB);
-	SPI.setClockDivider(SPI_CLOCK_DIV4); // 4MHz
 
 	tft.setRotation(0); // 0 - Portrait, 1 - Lanscape
 	tft.fillScreen(ST7735_BLACK);
@@ -312,7 +314,7 @@ void loop()
 	pwm = pwm > MAX_PWM ? pwm = MAX_PWM : pwm < 0 ? pwm = 0 : pwm;
 
 	//NOTfall sicherheit / Spitze nicht eingesteckt
-	if (actual_temperature > 550)
+	if (actual_temperature > 415)
 	{
 		pwm = 0;
 		actual_temperature = 0;
@@ -320,11 +322,13 @@ void loop()
 
 	analogWrite(PWMpin, pwm);
 	watt = calcPower(volt, pwm);
-	
+
 	//digitalWrite(PWMpin, LOW);
 	// calcPower(volt, pwm);
 
-	if ((currentMillis - refreshMillis >= DISPLAY_REFRESH) || ((abs(soll_temp_tmp - actual_temperature) > 10) && !autoOFF) || (standby_act != standby_act_old))
+	if ((currentMillis - refreshMillis >= DISPLAY_REFRESH) ||
+		((abs(soll_temp_tmp - actual_temperature) > 10) && !autoOFF && (currentMillis - refreshMillis >= DISPLAY_REFRESH / 8)) ||
+		(standby_act != standby_act_old))
 	{
 		refreshMillis = currentMillis;
 		writeHEATING(disp_soll_temp, actual_temperature);
@@ -351,8 +355,8 @@ int getTemperature()
 	// adcValue = adcValue /4;
 	// Serial.print("ADC Value ");
 	// Serial.println(adcValue);
-	analogWrite(PWMpin, pwm);											  //switch heater back to last value
-	return round(adcValue * ADC_TO_TEMP_GAIN / 8.0 + ADC_TO_TEMP_OFFSET); //apply linear conversion to actual temperature
+	analogWrite(PWMpin, pwm);												//switch heater back to last value
+	return round(adcValue * (ADC_TO_TEMP_GAIN / 8.0) + ADC_TO_TEMP_OFFSET); //apply linear conversion to actual temperature
 }
 
 void writePWM(int pwmVAL)
@@ -405,7 +409,7 @@ void writePWM(int pwmVAL)
 	{
 		if (pwmVAL)
 		{
-			uint8_t _pwm = pwmVAL *2.55;
+			uint8_t _pwm = pwmVAL * 2.55;
 			tft.fillRect(28, 153, pwmVAL, 12, tft.Color565(_pwm, 255 - _pwm, 0));
 			if (pwmVAL != 100)
 				tft.fillRect(28 + pwmVAL, 153, 100 - pwmVAL, 12, ST7735_BLACK);
@@ -435,7 +439,7 @@ void writePWM(int pwmVAL)
 
 			tft.fillRect(80, 144, 30, 8, ST7735_BLACK);
 
-			if (watt >= MAXWATT-1)
+			if (watt >= MAXWATT - 1)
 				tft.setTextColor(ST7735_RED);
 			tft.setCursor(80, 144);
 			if (watt < 10)
